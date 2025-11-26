@@ -6,6 +6,7 @@ A fully decentralized, permissionless prediction market protocol for the Hemi bl
 
 - [Overview](#overview)
 - [Theory of Operation](#theory-of-operation)
+  - [System Architecture](#system-architecture)
   - [Logarithmic Market Scoring Rule (LMSR)](#logarithmic-market-scoring-rule-lmsr)
   - [Outcome Tokens](#outcome-tokens)
   - [Oracle System](#oracle-system)
@@ -36,6 +37,52 @@ Hemi Prediction Markets enables speculation on future events using an Automated 
 ---
 
 ## Theory of Operation
+
+### System Architecture
+
+Unlike order-book prediction markets (Polymarket, Kalshi), this protocol uses an **Automated Market Maker (AMM)** based on the Logarithmic Market Scoring Rule (LMSR). There's no matching of buyers and sellers—instead, traders buy from and sell to a smart contract that algorithmically sets prices.
+
+#### Contract Roles
+
+| Contract | Role |
+|----------|------|
+| **MarketCore** | Holds all collateral (USDC), manages market lifecycle, coordinates resolution |
+| **FpmmAMM** | Prices trades using LMSR math, mints/burns outcome tokens |
+| **OutcomeToken1155** | Single ERC-1155 contract holding all outcome tokens for all markets |
+| **Oracle Adapter** | Determines winning outcome after deadline (e.g., via Uniswap V3 TWAP) |
+
+#### Collateral & Token Flow
+
+```
+BUY:   User deposits USDC → MarketCore vault → FpmmAMM mints outcome tokens → User
+SELL:  User returns outcome tokens → FpmmAMM burns them → MarketCore releases USDC → User
+REDEEM: User returns winning tokens → MarketCore releases 1 USDC per token → User
+```
+
+All collateral lives in MarketCore. The AMM never holds funds—it only controls minting/burning of outcome tokens based on LMSR pricing.
+
+#### Key Differences from Order-Book Markets
+
+| Aspect | Order Book (Polymarket) | AMM/LMSR (This Protocol) |
+|--------|-------------------------|--------------------------|
+| Price discovery | Bid/ask matching | Algorithmic via cost function |
+| Liquidity | Requires active market makers | Built-in via LP deposits |
+| Trade execution | May not fill if no counterparty | Always executes (with slippage) |
+| LP risk | N/A | Bounded loss determined by `b` parameter |
+
+#### Typical Operations
+
+**Most common (daily):**
+- `buyOutcome` / `sellOutcome` — Traders speculate on outcomes
+- `getOutcomePrices` — UIs display current implied probabilities
+
+**Periodic:**
+- `addLiquidity` / `removeLiquidity` — LPs adjust positions
+- `requestResolution` / `finalizeMarket` — Anyone settles expired markets
+- `redeem` — Winners collect collateral
+
+**One-time per market:**
+- `deployHemiEthUsdMarket` — Creator launches new market with oracle question
 
 ### Logarithmic Market Scoring Rule (LMSR)
 
