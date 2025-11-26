@@ -46,7 +46,7 @@ contract PredictionMarketDeployer {
     // ============ Hemi Chain Constants ============
     
     /// @notice Default ETH/USDC.e V3 pool on Hemi
-    address public constant HEMI_ETH_USDC_POOL = 0x9580d4519c9f27642e21085e763e761a74ef3735;
+    address public constant HEMI_ETH_USDC_POOL = 0x9580D4519C9F27642e21085E763E761a74eF3735;
     
     /// @notice WETH address on Hemi
     address public constant HEMI_WETH = 0x4200000000000000000000000000000000000006;

@@ -159,9 +159,9 @@ contract OutcomeToken1155 is IERC1155, IERC1155MetadataURI {
     
     /**
      * @notice Get the metadata URI for a token
-     * @param /* id */ The token ID (unused - same base URI for all tokens)
      * @return The URI string
      * @dev Returns base URI; clients should construct full URI as baseURI + tokenId
+     *      Token ID parameter is unused - same base URI for all tokens
      */
     function uri(uint256 /* id */) external view returns (string memory) {
         return _uri;
