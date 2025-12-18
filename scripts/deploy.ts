@@ -293,6 +293,19 @@ async function main(): Promise<DeploymentResult> {
   console.log("JSON Output (for scripts/configs):");
   console.log(JSON.stringify(result, null, 2));
 
+  const fs = require("fs");
+  const path = require("path");
+  const deploymentPath = path.join(__dirname, "../frontend/contracts/deployment.json");
+
+  // Ensure directory exists
+  const dir = path.dirname(deploymentPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  fs.writeFileSync(deploymentPath, JSON.stringify(result, null, 2));
+  console.log(`\nDeployment info saved to: ${deploymentPath}`);
+
   return result;
 }
 
