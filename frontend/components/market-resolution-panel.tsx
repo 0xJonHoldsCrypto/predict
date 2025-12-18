@@ -26,8 +26,8 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
         return () => clearInterval(timer);
     }, []);
 
-    const isMockOracle = oracleAddress && deployment.mockOracle && oracleAddress.toLowerCase() === deployment.mockOracle.toLowerCase();
-    const isTwapOracle = oracleAddress && deployment.oracleAdapter && oracleAddress.toLowerCase() === deployment.oracleAdapter.toLowerCase();
+    const isMockOracle = !!(oracleAddress && deployment.mockOracle && oracleAddress.toLowerCase() === deployment.mockOracle.toLowerCase());
+    const isTwapOracle = !!(oracleAddress && deployment.oracleAdapter && oracleAddress.toLowerCase() === deployment.oracleAdapter.toLowerCase());
 
     // --- TWAP Data Fetching ---
     const { data: questionConfigData } = useReadContract({
