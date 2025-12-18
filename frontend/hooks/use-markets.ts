@@ -32,10 +32,10 @@ export function useMarkets() {
             if (!publicClient) return;
 
             try {
-                // 1. Fetch Logs (Broad search to debug filtering issues)
+                // 1. Fetch Logs (Filter for new markets only)
                 const logs = await publicClient.getLogs({
                     address: deployment.predictionMarketDeployer as `0x${string}`,
-                    fromBlock: 'earliest',
+                    fromBlock: BigInt(3352000),
                 });
 
                 console.log("useMarkets: Fetched raw logs from deployer:", logs.length);
