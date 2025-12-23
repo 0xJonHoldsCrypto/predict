@@ -100,15 +100,22 @@ export function useMarkets() {
                                 args: [marketId],
                             }) as any;
 
-                            if (marketData && marketData.marketDeadline) {
-                                const deadline = Number(marketData.marketDeadline);
-                                if (!isNaN(deadline) && deadline > 0) {
-                                    endDate = new Date(deadline * 1000).toLocaleString('en-US', {
-                                        dateStyle: 'medium',
-                                        timeStyle: 'short',
-                                        timeZoneName: 'short'
-                                    });
+                            let deadline;
+                            // handle object or array return
+                            if (marketData && typeof marketData === 'object') {
+                                if ('marketDeadline' in marketData) {
+                                    deadline = Number(marketData.marketDeadline);
+                                } else if (Array.isArray(marketData) && marketData.length > 1) {
+                                    deadline = Number(marketData[1]);
                                 }
+                            }
+
+                            if (deadline && !isNaN(deadline) && deadline > 0) {
+                                endDate = new Date(deadline * 1000).toLocaleString('en-US', {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short',
+                                    timeZoneName: 'short'
+                                });
                             }
                         } catch (err) {
                             // console.warn(`Failed to fetch market info for ${marketId}`, err);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useAccount } from 'wagmi';
 import { ABIS } from '@/contracts/abis';
 import deployment from '@/contracts/deployment.json';
 import { parseUnits, formatUnits } from 'viem';
@@ -73,6 +73,10 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
     // Only show for known oracles
     if (!isMockOracle && !isTwapOracle) return null;
 
+    // Check if user is admin (deployer)
+    const { address: userAddress } = useAccount();
+    const isAdmin = !!(userAddress && deployment.deployer && userAddress.toLowerCase() === deployment.deployer.toLowerCase());
+
     const handleResolve = () => {
         if (!selectedOutcomeIndex) return;
         writeContract({
@@ -92,6 +96,12 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
         });
     }
 
+    // Only show if:
+    // 1. Is Mock Oracle AND User is Admin
+    // 2. Is TWAP Oracle (anyone can see, but buttons disabled if too early)
+    if (isMockOracle && !isAdmin) return null;
+    if (!isMockOracle && !isTwapOracle) return null;
+
     return (
         <Card className={`mt-8 border-bg-card ${isMockOracle ? 'border-orange-500/30 bg-orange-500/5' : 'border-blue-500/30 bg-blue-500/5'}`}>
             <CardHeader>
@@ -101,7 +111,7 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
                 </div>
                 <CardDescription>
                     {isMockOracle
-                        ? "This is a custom market using a Mock Oracle. You can manually resolve it."
+                        ? "Restricted: Only the platform administrator can resolve this market."
                         : "This market uses an on-chain TWAP Oracle. Resolution is automated once the time window closes."
                     }
                 </CardDescription>
@@ -140,10 +150,15 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
                                 </span>
                             )}
                         </div>
+                        {isTwapOracle && (
+                            <p className="text-xs text-muted-foreground mt-2 border-t pt-2">
+                                * To resolve this market, wait for the timer to end, then click "Finalize". This submits a transaction to the blockchain.
+                            </p>
+                        )}
                     </div>
                 )}
 
-                {isMockOracle && (
+                {isMockOracle && isAdmin && (
                     <div className="grid gap-2">
                         <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
                             <SelectTrigger>
@@ -161,7 +176,7 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
                 )}
 
                 <div className="flex gap-2">
-                    {isMockOracle && (
+                    {isMockOracle && isAdmin && (
                         <Button
                             onClick={handleResolve}
                             disabled={!selectedOutcomeIndex || isPending || isConfirming}
