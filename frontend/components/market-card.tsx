@@ -5,12 +5,14 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, Users } from 'lucide-react';
+import { MarketStatusLabel } from '@/components/market-status-label';
 
 interface MarketCardProps {
     id: string;
     question: string;
     volume: string;
     endDate: string;
+    endTimestamp?: number;
     yesPrice: number;
     noPrice: number;
     image?: string;
@@ -22,6 +24,7 @@ export function MarketCard({
     question,
     volume,
     endDate,
+    endTimestamp,
     yesPrice,
     noPrice,
     image,
@@ -36,9 +39,9 @@ export function MarketCard({
             <Card className="overflow-hidden hover:border-foreground/50 transition-colors h-full flex flex-col group cursor-pointer bg-card/50 backdrop-blur-sm">
                 <CardHeader className="p-4 pb-2 space-y-2">
                     <div className="flex justify-between items-start gap-4">
-                        <div className="flex gap-2 items-center text-xs text-muted-foreground">
+                        <div className="flex gap-2 items-center text-xs text-muted-foreground w-full">
                             {image && <img src={image} alt="icon" className="w-5 h-5 rounded-full" />}
-                            <span>Ends {endDate}</span>
+                            <MarketStatusLabel endDate={endTimestamp || endDate} isResolved={isResolved} />
                         </div>
                         <div className="flex gap-1">
                             <div className="flex gap-1">

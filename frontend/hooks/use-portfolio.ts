@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,10 +9,11 @@ import { useMarkets, Market } from '@/hooks/use-markets';
 
 export interface Position {
     marketId: string;
-    marketQuestion: string; // For display
+    marketQuestion: string;
     outcomeBalances: string[]; // [NO balance, YES balance]
     lpShares: string;
     hasPosition: boolean;
+    market: Market;
 }
 
 export function usePortfolio() {
@@ -25,8 +25,21 @@ export function usePortfolio() {
 
     useEffect(() => {
         async function fetchBalances() {
-            if (!address || !publicClient || markets.length === 0) {
+            if (!address) {
                 setIsLoading(false);
+                setPositions([]);
+                return;
+            }
+
+            // If markets haven't loaded yet, wait.
+            // But if we have no markets at all (fetched and empty), stop loading.
+            if (!publicClient || markets.length === 0) {
+                // Check if useMarkets is actually done? 
+                // We don't have access to useMarkets isLoading here directly in the condition, 
+                // but markets array being empty likely means loading or no markets.
+                // We'll let the user's isLoading from useMarkets handle the main spinner 
+                // if they use it, but for strict portfolio loading:
+                // Let's just return and wait for markets to populate if they exist.
                 return;
             }
 
@@ -64,7 +77,8 @@ export function usePortfolio() {
                                 marketQuestion: market.question,
                                 outcomeBalances: balances,
                                 lpShares,
-                                hasPosition: true
+                                hasPosition: true,
+                                market: market
                             });
                         }
 

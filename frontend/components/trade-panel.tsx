@@ -446,6 +446,11 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                                                 : (lpBalance ? parseFloat(formatUnits(lpBalance as bigint, 18)).toFixed(4) : '0.00')}
                                         </span>
                                     )}
+                                    {activeTab === 'pool' && poolMode === 'deposit' && (
+                                        <span className="text-[10px] italic opacity-80 block max-w-[200px] leading-tight mt-1">
+                                            Note: First provider mints fixed 1000 shares to set initial price.
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-right flex flex-col">
                                     {activeTab === 'buy' && inputType === 'shares' && (
@@ -461,15 +466,115 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                             </div>
                         </div>
 
-                        <Button
-                            className="w-full mt-4 font-bold text-base"
-                            size="lg"
-                            onClick={handleAction}
-                            disabled={!isConnected || !amount || isWritePending || isConfirming}
-                        >
-                            {isWritePending || isConfirming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            {buttonLabel}
-                        </Button>
+                        {/* ACTION BUTTONS (2-STEP) */}
+                        <div className="flex gap-3 mt-4">
+                            {/* APPROVE BUTTON */}
+                            {(activeTab === 'buy' || activeTab === 'sell' || (activeTab === 'pool' && poolMode === 'deposit')) && (() => {
+                                let showApprove = false;
+                                let isApproved = false;
+                                let approveLabel = "Approve";
+                                let approveAction = async () => { };
+
+                                if (activeTab === 'buy' || (activeTab === 'pool' && poolMode === 'deposit')) {
+                                    // USDC Approval
+                                    const amountBigInt = parseUnits(amount || '0', 18);
+                                    const allowance = usdcAllowance as bigint || BigInt(0);
+                                    // If using shares input for buy, we est cost. For simplicity check raw amount if USD, else est.
+                                    // Logic: Show approve if allowance < needed. 
+                                    // Calculate needed:
+                                    let needed = BigInt(0);
+                                    if (amount) {
+                                        if (activeTab === 'buy' && inputType === 'shares') {
+                                            const cost = parseFloat(amount) * price;
+                                            needed = parseUnits(cost.toFixed(18), 18);
+                                        } else {
+                                            needed = parseUnits(amount, 18);
+                                        }
+                                    }
+
+                                    showApprove = true; // Always show structure, but maybe disable or mark done
+                                    isApproved = needed > BigInt(0) ? allowance >= needed : allowance > BigInt(0); // If 0 amount, standard is show approved if non-zero allowance, or just disable.
+                                    // Better: If amount is 0, disable both. If amount > 0, check allowance.
+                                    if (!amount || parseFloat(amount) === 0) {
+                                        isApproved = false; // Effectively disabled
+                                    }
+
+                                    approveLabel = "1. Approve USDC";
+                                    approveAction = async () => {
+                                        setTxType('approve');
+                                        writeContract({
+                                            address: collateralAddress,
+                                            abi: ABIS.IERC20,
+                                            functionName: 'approve',
+                                            args: [deployment.simpleRouter, BigInt(2 ** 256) - BigInt(1)],
+                                        });
+                                    };
+
+                                } else if (activeTab === 'sell') {
+                                    // Shares Approval
+                                    showApprove = true;
+                                    isApproved = isOutcomeApproved === true;
+                                    approveLabel = "1. Approve Shares";
+                                    approveAction = async () => {
+                                        setTxType('approve');
+                                        writeContract({
+                                            address: deployment.outcomeToken1155 as `0x${string}`,
+                                            abi: ABIS.OutcomeToken1155,
+                                            functionName: 'setApprovalForAll',
+                                            args: [deployment.simpleRouter, true],
+                                        });
+                                    };
+                                }
+
+                                if (!showApprove) return null;
+
+                                return (
+                                    <Button
+                                        className="flex-1 font-bold"
+                                        variant={isApproved ? "outline" : "default"}
+                                        onClick={approveAction}
+                                        disabled={!isConnected || !amount || isApproved || isWritePending || isConfirming}
+                                    >
+                                        {isApproved ? "Approved" : (isWritePending && txType === 'approve' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null)}
+                                        {isApproved ? "Approved" : approveLabel}
+                                    </Button>
+                                );
+                            })()}
+
+                            {/* TRADE ACTION BUTTON */}
+                            <Button
+                                className="flex-1 font-bold"
+                                size="lg"
+                                onClick={handleAction}
+                                disabled={(() => {
+                                    if (!isConnected || !amount || isWritePending || isConfirming) return true;
+                                    // Disable if not approved yet
+                                    if (activeTab === 'buy' || (activeTab === 'pool' && poolMode === 'deposit')) {
+                                        let needed = BigInt(0);
+                                        if (activeTab === 'buy' && inputType === 'shares') {
+                                            const cost = parseFloat(amount) * price;
+                                            needed = parseUnits(cost.toFixed(18), 18);
+                                        } else {
+                                            needed = parseUnits(amount, 18);
+                                        }
+                                        const allowance = usdcAllowance as bigint || BigInt(0);
+                                        if (allowance < needed) return true;
+                                    }
+                                    if (activeTab === 'sell') {
+                                        if (!isOutcomeApproved) return true;
+                                    }
+                                    return false;
+                                })()}
+                            >
+                                {isWritePending && txType !== 'approve' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {(() => {
+                                    if (activeTab === 'buy') return `2. Buy ${selectedOutcome}`;
+                                    if (activeTab === 'sell') return `2. Sell ${selectedOutcome}`;
+                                    if (activeTab === 'pool') return poolMode === 'deposit' ? '2. Deposit' : 'Withdraw'; // Withdraw doesn't need approve usually if router burns logic is distinct, but for router managing LP shares it might be custom. Actually removeLiquidity is simple.
+                                    return 'Trade';
+                                })()}
+                            </Button>
+                        </div>
                     </div>
                 </Tabs>
             </CardContent>

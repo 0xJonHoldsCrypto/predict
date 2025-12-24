@@ -208,12 +208,20 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
                             </span>
                         </div>
                         <div className="flex justify-between items-center pt-2">
-                            <span className="text-muted-foreground">Status:</span>
                             {resolutionReady ? (
                                 <span className="text-green-500 font-bold animate-pulse">Ready to Finalize</span>
                             ) : (
-                                <span className="text-yellow-500">
-                                    Opens in {timeRemaining > 0 ? new Date(Number(timeRemaining) * 1000).toISOString().substr(11, 8) : "00:00:00"}
+                                <span className="text-yellow-500 font-mono">
+                                    Opens in {(() => {
+                                        if (timeRemaining <= 0) return "00:00:00";
+                                        const d = Math.floor(Number(timeRemaining) / (3600 * 24));
+                                        const h = Math.floor((Number(timeRemaining) % (3600 * 24)) / 3600);
+                                        const m = Math.floor((Number(timeRemaining) % 3600) / 60);
+                                        const s = Math.floor(Number(timeRemaining) % 60);
+
+                                        if (d > 0) return `${d}d ${h}h ${m}m ${s}s`;
+                                        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                                    })()}
                                 </span>
                             )}
                         </div>

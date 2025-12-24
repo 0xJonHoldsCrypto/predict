@@ -13,6 +13,7 @@ import { useAccount, useReadContract } from 'wagmi';
 import { ABIS } from '@/contracts/abis';
 import { formatUnits } from 'viem';
 import { Wallet } from 'lucide-react';
+import { MarketStatusLabel } from '@/components/market-status-label';
 import deployment from '@/contracts/deployment.json';
 
 export default function MarketPage() {
@@ -57,7 +58,9 @@ export default function MarketPage() {
                                 <div>
                                     <h1 className="text-2xl font-bold leading-tight">{market.question}</h1>
                                     <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                        <span>Ends {market.endDate}</span>
+                                        <div className="flex items-center gap-1">
+                                            <MarketStatusLabel endDate={market.endTimestamp || market.endDate} isResolved={market.isResolved} />
+                                        </div>
                                         <span>•</span>
                                         <span>Vol: {market.volume}</span>
                                         <span>•</span>
