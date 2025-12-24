@@ -10,11 +10,12 @@ export interface Market {
     id: string; // marketId (bytes32)
     question: string;
     description: string;
-    endDate: string;
-    yesPrice: number;
-    noPrice: number;
     volume: string;
     liquidity: string;
+    endDate: string;
+    endTimestamp?: number;
+    yesPrice: number;
+    noPrice: number;
     image?: string;
     isResolved: boolean;
     oracle: string;
@@ -192,6 +193,7 @@ export function useMarkets() {
                             question,
                             description,
                             endDate,
+                            endTimestamp,
                             yesPrice: 0.50,
                             noPrice: 0.50,
                             volume: volumeLabel,
