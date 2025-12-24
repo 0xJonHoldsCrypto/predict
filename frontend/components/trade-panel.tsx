@@ -22,6 +22,11 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
     const [amount, setAmount] = useState('');
     const [selectedOutcome, setSelectedOutcome] = useState<'YES' | 'NO'>('YES');
     const [activeTab, setActiveTab] = useState('buy'); // buy, sell, pool
+
+    useEffect(() => {
+        console.log("TRADE_PANEL_V2_LOADED");
+    }, []);
+
     const [poolMode, setPoolMode] = useState<'deposit' | 'withdraw'>('deposit');
     const [txType, setTxType] = useState<string>('');
     const [inputType, setInputType] = useState<'usd' | 'shares'>('usd'); // Toggle for Buy
@@ -291,26 +296,6 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
         }
     };
 
-    // Construct Button Label
-    let buttonLabel = 'Trade';
-    if (activeTab === 'buy') {
-        const cost = inputType === 'usd' ? (amount ? parseFloat(amount) : 0) : (amount ? parseFloat(amount) * price : 0);
-        const costBigInt = parseUnits(cost.toFixed(18), 18);
-        const needsApproval = usdcAllowance !== undefined && cost > 0 && (usdcAllowance as bigint) < costBigInt;
-
-        buttonLabel = isWritePending || isConfirming ? (needsApproval ? 'Approving...' : 'Buying...') : (needsApproval ? 'Approve USDC' : `Buy ${selectedOutcome}`);
-    } else if (activeTab === 'sell') {
-        const needsApproval = isOutcomeApproved === false;
-        buttonLabel = isWritePending || isConfirming ? (needsApproval ? 'Approving...' : 'Selling...') : (needsApproval ? 'Approve Shares' : `Sell ${selectedOutcome}`);
-    } else if (activeTab === 'pool') {
-        if (poolMode === 'deposit') {
-            const needsApproval = usdcAllowance !== undefined && amount && (usdcAllowance as bigint) < parseUnits(amount, 18);
-            buttonLabel = isWritePending || isConfirming ? (needsApproval ? 'Approving...' : 'Depositing...') : (needsApproval ? 'Approve USDC' : 'Add Liquidity');
-        } else {
-            buttonLabel = isWritePending || isConfirming ? 'Withdrawing...' : 'Remove Liquidity';
-        }
-    }
-
     if (isResolved) {
         // ... Resolved UI (Simplified for brevity, same as before) ...
         const hasWinnings = outcomeBalance && (outcomeBalance as bigint) > BigInt(0);
@@ -479,9 +464,7 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                                     // USDC Approval
                                     const amountBigInt = parseUnits(amount || '0', 18);
                                     const allowance = usdcAllowance as bigint || BigInt(0);
-                                    // If using shares input for buy, we est cost. For simplicity check raw amount if USD, else est.
-                                    // Logic: Show approve if allowance < needed. 
-                                    // Calculate needed:
+
                                     let needed = BigInt(0);
                                     if (amount) {
                                         if (activeTab === 'buy' && inputType === 'shares') {
@@ -492,11 +475,10 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                                         }
                                     }
 
-                                    showApprove = true; // Always show structure, but maybe disable or mark done
-                                    isApproved = needed > BigInt(0) ? allowance >= needed : allowance > BigInt(0); // If 0 amount, standard is show approved if non-zero allowance, or just disable.
-                                    // Better: If amount is 0, disable both. If amount > 0, check allowance.
+                                    showApprove = true;
+                                    isApproved = needed > BigInt(0) ? allowance >= needed : allowance > BigInt(0);
                                     if (!amount || parseFloat(amount) === 0) {
-                                        isApproved = false; // Effectively disabled
+                                        isApproved = false;
                                     }
 
                                     approveLabel = "1. Approve USDC";
@@ -531,11 +513,12 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                                 return (
                                     <Button
                                         className="flex-1 font-bold"
+                                        size="lg"
                                         variant={isApproved ? "outline" : "default"}
                                         onClick={approveAction}
                                         disabled={!isConnected || !amount || isApproved || isWritePending || isConfirming}
                                     >
-                                        {isApproved ? "Approved" : (isWritePending && txType === 'approve' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null)}
+                                        {isWritePending && txType === 'approve' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         {isApproved ? "Approved" : approveLabel}
                                     </Button>
                                 );
@@ -543,12 +526,14 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
 
                             {/* TRADE ACTION BUTTON */}
                             <Button
-                                className="flex-1 font-bold"
+                                className={`flex-1 font-bold ${activeTab === 'pool' ? '' :
+                                    selectedOutcome === 'YES' ? '!bg-green-600 hover:!bg-green-700 !text-white' : '!bg-red-600 hover:!bg-red-700 !text-white'
+                                    }`}
                                 size="lg"
                                 onClick={handleAction}
                                 disabled={(() => {
                                     if (!isConnected || !amount || isWritePending || isConfirming) return true;
-                                    // Disable if not approved yet
+
                                     if (activeTab === 'buy' || (activeTab === 'pool' && poolMode === 'deposit')) {
                                         let needed = BigInt(0);
                                         if (activeTab === 'buy' && inputType === 'shares') {
@@ -570,7 +555,7 @@ export function TradePanel({ marketId, yesPrice, noPrice }: TradePanelProps) {
                                 {(() => {
                                     if (activeTab === 'buy') return `2. Buy ${selectedOutcome}`;
                                     if (activeTab === 'sell') return `2. Sell ${selectedOutcome}`;
-                                    if (activeTab === 'pool') return poolMode === 'deposit' ? '2. Deposit' : 'Withdraw'; // Withdraw doesn't need approve usually if router burns logic is distinct, but for router managing LP shares it might be custom. Actually removeLiquidity is simple.
+                                    if (activeTab === 'pool') return poolMode === 'deposit' ? '2. Deposit' : 'Withdraw';
                                     return 'Trade';
                                 })()}
                             </Button>
