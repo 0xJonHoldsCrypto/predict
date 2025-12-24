@@ -1693,6 +1693,11 @@ export const ABIS = {
           "internalType": "uint256",
           "name": "minLpSharesOut",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
         }
       ],
       "name": "addLiquidity",
@@ -3247,25 +3252,6 @@ export const ABIS = {
     }
   ],
   "UniV3EthUsdTwapOracleAdapter": [
-    {
-      "inputs": [
-        {
-          "internalType": "uint32",
-          "name": "twapWindow",
-          "type": "uint32"
-        }
-      ],
-      "name": "getHemiEthUsdPrice",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
     {
       "inputs": [],
       "name": "InvalidEvalTime",
