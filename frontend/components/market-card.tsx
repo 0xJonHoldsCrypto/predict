@@ -25,8 +25,9 @@ export function MarketCard({
     yesPrice,
     noPrice,
     image,
-    isResolved = false
-}: MarketCardProps) {
+    isResolved = false,
+    winningOutcome
+}: MarketCardProps & { winningOutcome?: string }) {
     const yesPercent = Math.round(yesPrice * 100);
     const noPercent = Math.round(noPrice * 100);
 
@@ -40,7 +41,13 @@ export function MarketCard({
                             <span>Ends {endDate}</span>
                         </div>
                         <div className="flex gap-1">
-                            {isResolved && <Badge variant="secondary" className="text-[10px] h-5">Resolved</Badge>}
+                            <div className="flex gap-1">
+                                {isResolved && (
+                                    <Badge variant={winningOutcome === 'YES' ? "default" : "destructive"} className="text-[10px] h-5">
+                                        Resolved: {winningOutcome}
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <CardTitle className="text-base font-medium leading-snug group-hover:underline decoration-1 underline-offset-4">

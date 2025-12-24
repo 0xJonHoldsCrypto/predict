@@ -16,7 +16,7 @@ interface RecentTradesProps {
 
 interface Trade {
     hash: string;
-    type: 'Buy' | 'Sell';
+    type: 'Buy' | 'Sell' | 'Add LP';
     user: string;
     amount: string;
     outcome: string;
@@ -51,7 +51,15 @@ export function RecentTrades({ marketId, outcomes }: RecentTradesProps) {
                     fromBlock: 'earliest'
                 });
 
-                // 3. Process Logs
+                // 3. Fetch Liquidity Adds (LP)
+                const lpLogs = await publicClient.getLogs({
+                    address: deployment.simpleRouter as `0x${string}`,
+                    event: parseAbiItem('event LiquidityProvided(bytes32 indexed marketId, address indexed provider, uint256 collateralAmount, uint256 lpShares)'),
+                    args: { marketId: marketId as `0x${string}` },
+                    fromBlock: 'earliest'
+                });
+
+                // 4. Process Logs
                 const buys: Trade[] = buyLogs.map(log => ({
                     hash: log.transactionHash,
                     type: 'Buy',
@@ -70,8 +78,17 @@ export function RecentTrades({ marketId, outcomes }: RecentTradesProps) {
                     blockNumber: log.blockNumber
                 }));
 
-                // 4. Sort by Block Number (Desc)
-                const allTrades = [...buys, ...sells].sort((a, b) =>
+                const lps: Trade[] = lpLogs.map(log => ({
+                    hash: log.transactionHash,
+                    type: 'Add LP',
+                    user: log.args.provider!,
+                    amount: formatUnits(log.args.collateralAmount!, 18), // Input USDC
+                    outcome: 'All Outcomes',
+                    blockNumber: log.blockNumber
+                }));
+
+                // 5. Sort by Block Number (Desc)
+                const allTrades = [...buys, ...sells, ...lps].sort((a, b) =>
                     Number(b.blockNumber - a.blockNumber)
                 ).slice(0, 20); // Keep last 20
 
@@ -94,7 +111,7 @@ export function RecentTrades({ marketId, outcomes }: RecentTradesProps) {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Recent Trades</CardTitle>
+                <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
                 {isLoading && trades.length === 0 ? (
@@ -103,7 +120,7 @@ export function RecentTrades({ marketId, outcomes }: RecentTradesProps) {
                     </div>
                 ) : trades.length === 0 ? (
                     <div className="p-4 text-center text-xs text-muted-foreground">
-                        No trades yet.
+                        No activity yet.
                     </div>
                 ) : (
                     <Table>
@@ -119,7 +136,14 @@ export function RecentTrades({ marketId, outcomes }: RecentTradesProps) {
                             {trades.map((trade) => (
                                 <TableRow key={trade.hash + trade.type}>
                                     <TableCell>
-                                        <Badge variant={trade.type === 'Buy' ? 'default' : 'secondary'} className={trade.type === 'Buy' ? "bg-green-500/10 text-green-500 hover:bg-green-500/20 border-0" : "bg-red-500/10 text-red-500 hover:bg-red-500/20 border-0"}>
+                                        <Badge
+                                            variant="secondary"
+                                            className={
+                                                trade.type === 'Buy' ? "bg-green-500/10 text-green-500 hover:bg-green-500/20 border-0" :
+                                                    trade.type === 'Sell' ? "bg-red-500/10 text-red-500 hover:bg-red-500/20 border-0" :
+                                                        "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border-0"
+                                            }
+                                        >
                                             {trade.type}
                                         </Badge>
                                     </TableCell>

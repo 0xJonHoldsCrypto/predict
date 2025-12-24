@@ -20,6 +20,8 @@ export interface Market {
     oracle: string;
     questionId: string;
     outcomes: string[];
+    winningOutcomeId?: number;
+    winningOutcome?: string;
 }
 
 export function useMarkets() {
@@ -102,12 +104,25 @@ export function useMarkets() {
 
                             let deadline;
                             // handle object or array return
-                            if (marketData && typeof marketData === 'object') {
+                            // VIEM sometimes returns array for structs
+                            if (marketData) {
                                 if ('marketDeadline' in marketData) {
                                     deadline = Number(marketData.marketDeadline);
-                                } else if (Array.isArray(marketData) && marketData.length > 1) {
+                                } else if (Array.isArray(marketData)) {
+                                    // Index 1 is marketDeadline based on struct order: [collateral, deadline, ...]
                                     deadline = Number(marketData[1]);
                                 }
+                            }
+
+                            if (deadline && !isNaN(deadline) && deadline > 0) {
+                                endDate = new Date(deadline * 1000).toLocaleString('en-US', {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short',
+                                    timeZoneName: 'short'
+                                });
+                            } else {
+                                // Fallback for debugging - if we can't parse it, show basic info?
+                                // console.log("Failed to parse deadline:", marketData);
                             }
 
                             if (deadline && !isNaN(deadline) && deadline > 0) {
@@ -173,6 +188,30 @@ export function useMarkets() {
                         }
                         const volumeLabel = formatUnits(volumeTotal, 18);
 
+                        // 6. Fetch Resolution Status
+                        let isResolved = false;
+                        let winningOutcomeId = -1;
+                        try {
+                            const statusData = await publicClient.readContract({
+                                address: deployment.marketCore as `0x${string}`,
+                                abi: ABIS.MarketCore,
+                                functionName: 'getMarketState',
+                                args: [marketId],
+                            }) as any;
+
+                            // ABI returns [status, winningOutcome, isInvalid]
+                            // Status enum: 0=Open, 1=Resolvable, 2=Resolved
+                            if (statusData && Array.isArray(statusData)) {
+                                const status = Number(statusData[0]);
+                                if (status === 2) {
+                                    isResolved = true;
+                                    winningOutcomeId = Number(statusData[1]);
+                                }
+                            }
+                        } catch (e) {
+                            // ignore
+                        }
+
                         fetchedMarkets.push({
                             id: marketId,
                             question,
@@ -183,7 +222,9 @@ export function useMarkets() {
                             volume: volumeLabel,
                             liquidity,
                             image,
-                            isResolved: false,
+                            isResolved,
+                            winningOutcomeId,
+                            winningOutcome: winningOutcomeId === 0 ? "NO" : winningOutcomeId === 1 ? "YES" : undefined,
                             oracle: oracle || "",
                             questionId: questionId || "",
                             outcomes

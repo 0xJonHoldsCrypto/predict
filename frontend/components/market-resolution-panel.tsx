@@ -73,34 +73,101 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
     // Only show for known oracles
     if (!isMockOracle && !isTwapOracle) return null;
 
+    // --- Market State Fetching ---
     // Check if user is admin (deployer)
     const { address: userAddress } = useAccount();
     const isAdmin = !!(userAddress && deployment.deployer && userAddress.toLowerCase() === deployment.deployer.toLowerCase());
 
-    const handleResolve = () => {
-        if (!selectedOutcomeIndex) return;
-        writeContract({
-            address: deployment.mockOracle as `0x${string}`,
-            abi: ABIS.MockOracle,
-            functionName: 'setOutcome',
-            args: [questionId, BigInt(selectedOutcomeIndex)],
-        });
-    };
+    // --- Market State Fetching ---
+    const { data: marketState } = useReadContract({
+        address: deployment.marketCore as `0x${string}`,
+        abi: ABIS.MarketCore,
+        functionName: 'getMarketState',
+        args: [marketId],
+    });
+
+    // marketState returns [status, winningOutcomeIndex, isInvalid]
+    // status: 0=Open, 1=Resolvable, 2=Resolved
+    const marketStatus = marketState ? Number((marketState as any)[0]) : 0;
+    const isResolvable = marketStatus === 1;
+
+    // --- Mock Oracle Outcome Fetching ---
+    const { data: oracleOutcomeData, refetch: refetchOracle } = useReadContract({
+        address: deployment.mockOracle as `0x${string}`,
+        abi: ABIS.MockOracle,
+        functionName: 'getOutcome',
+        args: [questionId || '0x0'],
+        query: { enabled: !!isMockOracle }
+    });
+
+    // MockOracle getOutcome returns: [winningOutcomeIndex, isInvalid, resolved, resolutionTime]
+    const oracleOutcomeIndex = oracleOutcomeData ? Number((oracleOutcomeData as any)[0]) : undefined;
+    const isOracleResolved = oracleOutcomeData ? (oracleOutcomeData as any)[2] : false;
+
+    // Initialize or Sync selection with Oracle state
+    useEffect(() => {
+        if (isOracleResolved && oracleOutcomeIndex !== undefined && selectedOutcomeIndex === '') {
+            setSelectedOutcomeIndex(oracleOutcomeIndex.toString());
+        }
+    }, [isOracleResolved, oracleOutcomeIndex, selectedOutcomeIndex]);
 
     const handleFinalize = () => {
-        writeContract({
-            address: deployment.marketCore as `0x${string}`,
-            abi: ABIS.MarketCore,
-            functionName: 'requestResolution',
-            args: [marketId],
-        });
+        if (isTwapOracle && isResolvable) {
+            // Step 2: Finalize
+            writeContract({
+                address: deployment.marketCore as `0x${string}`,
+                abi: ABIS.MarketCore,
+                functionName: 'finalizeMarket',
+                args: [marketId],
+            });
+        } else {
+            // Step 1: Request Resolution
+            writeContract({
+                address: deployment.marketCore as `0x${string}`,
+                abi: ABIS.MarketCore,
+                functionName: 'requestResolution',
+                args: [marketId],
+            });
+        }
     }
+
+    const handleAction = async () => {
+        if (!selectedOutcomeIndex) return;
+
+        const targetIndex = BigInt(selectedOutcomeIndex);
+
+        // Step 1: Set Outcome (if not set or different)
+        // We allow re-setting outcome if it hasn't been finalized yet
+        if (!isOracleResolved || oracleOutcomeIndex !== Number(selectedOutcomeIndex)) {
+            writeContract({
+                address: deployment.mockOracle as `0x${string}`,
+                abi: ABIS.MockOracle,
+                functionName: 'setOutcome',
+                args: [questionId, targetIndex, false], // isInvalid = false
+            });
+        }
+        // Step 2: Finalize (if Oracle matches selection)
+        else {
+            writeContract({
+                address: deployment.marketCore as `0x${string}`,
+                abi: ABIS.MarketCore,
+                functionName: 'finalizeMarket',
+                args: [marketId],
+            });
+        }
+    };
 
     // Only show if:
     // 1. Is Mock Oracle AND User is Admin
     // 2. Is TWAP Oracle (anyone can see, but buttons disabled if too early)
+    if (marketStatus === 2) return null;
     if (isMockOracle && !isAdmin) return null;
     if (!isMockOracle && !isTwapOracle) return null;
+
+    // Determine Button State
+    const isStep1 = !isOracleResolved || (selectedOutcomeIndex !== '' && oracleOutcomeIndex !== Number(selectedOutcomeIndex));
+    const buttonLabel = isStep1 ? "Set Winning Outcome" : "Finalize Market";
+    const buttonColor = isStep1 ? "bg-orange-600 hover:bg-orange-700" : "bg-red-600 hover:bg-red-700";
 
     return (
         <Card className={`mt-8 border-bg-card ${isMockOracle ? 'border-orange-500/30 bg-orange-500/5' : 'border-blue-500/30 bg-blue-500/5'}`}>
@@ -155,48 +222,51 @@ export function MarketResolutionPanel({ marketId, questionId, outcomes, oracleAd
                                 * To resolve this market, wait for the timer to end, then click "Finalize". This submits a transaction to the blockchain.
                             </p>
                         )}
+
+                        <Button
+                            onClick={handleFinalize}
+                            disabled={isPending || isConfirming || !resolutionReady}
+                            className="w-full mt-4"
+                        >
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {isResolvable ? "Confirm Finalization" : "Request Resolution"}
+                        </Button>
                     </div>
                 )}
 
                 {isMockOracle && isAdmin && (
-                    <div className="grid gap-2">
-                        <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select Winning Outcome" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {outcomes.map((outcome, idx) => (
-                                    <SelectItem key={idx} value={idx.toString()}>
-                                        {outcome}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
+                    <div className="space-y-4">
+                        <div className="grid gap-2">
+                            <Select value={selectedOutcomeIndex} onValueChange={setSelectedOutcomeIndex}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Winning Outcome" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {outcomes.map((outcome, idx) => (
+                                        <SelectItem key={idx} value={idx.toString()}>
+                                            {outcome}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                <div className="flex gap-2">
-                    {isMockOracle && isAdmin && (
                         <Button
-                            onClick={handleResolve}
+                            onClick={handleAction}
                             disabled={!selectedOutcomeIndex || isPending || isConfirming}
-                            className="flex-1 bg-orange-600 hover:bg-orange-700"
+                            className={`w-full ${buttonColor}`}
                         >
                             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            1. Set Outcome
+                            {buttonLabel}
                         </Button>
-                    )}
-                    <Button
-                        onClick={handleFinalize}
-                        // For TWAP, disable if not ready. For Mock, allow always (admin flow)
-                        disabled={isPending || isConfirming || (isTwapOracle && !resolutionReady)}
-                        className={`flex-1 ${!isMockOracle ? "w-full" : ""}`}
-                        variant={isMockOracle ? "outline" : "default"}
-                    >
-                        {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {isMockOracle ? "2. Finalize Market" : "Finalize Market Resolution"}
-                    </Button>
-                </div>
+
+                        {!isStep1 && (
+                            <p className="text-xs text-muted-foreground text-center">
+                                Outcome set to <strong>{outcomes[Number(selectedOutcomeIndex)]}</strong>. Click Finalize to close the market.
+                            </p>
+                        )}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
